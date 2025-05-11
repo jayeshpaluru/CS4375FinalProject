@@ -11,6 +11,7 @@ from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer, WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 import os
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
 # Download NLTK resources
 nltk.download('stopwords', quiet=True)
@@ -239,7 +240,7 @@ def analyze_dataset(df, text_column, label_column=None, dataset_name="Dataset", 
         # ...
         pass
 
-# Function to plot text length distributions (unchanged)
+# Function to plot text length distributions
 def plot_text_length_distribution(lengths, title, filename, bins=50):
     plt.figure(figsize=(12, 6))
     plt.hist(lengths, bins=bins, alpha=0.7, color='steelblue')
@@ -253,6 +254,27 @@ def plot_text_length_distribution(lengths, title, filename, bins=50):
     plt.savefig(f'plots/{filename}.png', bbox_inches='tight')
     plt.close()
 
+
+# Function to extract Bag of Words and TF-IDF features
+
+def extract_bow_features(texts, max_features=1000):
+    
+    # Extract Bag of Words features from a list/series of texts.
+    
+    vectorizer = CountVectorizer(max_features=max_features)
+    X_bow = vectorizer.fit_transform(texts)
+    print(f"BOW shape: {X_bow.shape}")
+    return X_bow, vectorizer
+
+def extract_tfidf_features(texts, max_features=1000):
+    
+    # Extract TF-IDF features from a list/series of texts.
+    
+    vectorizer = TfidfVectorizer(max_features=max_features)
+    X_tfidf = vectorizer.fit_transform(texts)
+    print(f"TF-IDF shape: {X_tfidf.shape}")
+    return X_tfidf, vectorizer
+
 # Load Reddit dataset and apply preprocessing
 print("Loading Reddit dataset...")
 reddit_df = pd.read_csv("Reddit Sample Data.csv")
@@ -265,6 +287,18 @@ analyze_dataset(reddit_df, 'body', dataset_name="Reddit Dataset", preprocess=Tru
 reddit_df['preprocessed_text'] = reddit_df['body'].apply(lambda x: 
     preprocess_text(x, remove_stopwords=True, stem=False, lemmatize=True))
 reddit_df.to_csv("Reddit_Sample_Data_Preprocessed.csv", index=False)
+
+
+# Uses the preprocessed text column for feature extraction
+preprocessed_texts = reddit_df['preprocessed_text'].fillna("")
+
+# Bag of Words
+X_bow, bow_vectorizer = extract_bow_features(preprocessed_texts)
+
+# TF-IDF
+X_tfidf, tfidf_vectorizer = extract_tfidf_features(preprocessed_texts)
+
+print("\nFeature extraction (Bag of Words & TF-IDF) complete!")
 
 print("\nPreprocessing completed! Preprocessed Reddit data saved to 'Reddit_Sample_Data_Preprocessed.csv'")
 print("Check the 'plots' folder for visualizations and preprocessing comparison.")
