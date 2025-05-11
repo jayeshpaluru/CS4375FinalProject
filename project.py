@@ -5,18 +5,15 @@ import seaborn as sns
 from wordcloud import WordCloud
 from collections import Counter
 import re
+from sklearn.feature_extraction.text import CountVectorizer
 import string
 import nltk
 from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer, WordNetLemmatizer
-from nltk.tokenize import word_tokenize
 import os
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
 # Download NLTK resources
 nltk.download('stopwords', quiet=True)
 nltk.download('punkt', quiet=True)
-nltk.download('wordnet', quiet=True)  # Required for lemmatization
 
 # Set style for plots
 plt.style.use('ggplot')
@@ -26,63 +23,8 @@ sns.set(font_scale=1.2)
 if not os.path.exists('plots'):
     os.makedirs('plots')
 
-# Enhanced function to preprocess text
-def preprocess_text(text, remove_stopwords=True, stem=False, lemmatize=True):
-    """
-    Comprehensive text preprocessing function that performs:
-    1. Lowercasing
-    2. Punctuation removal
-    3. Tokenization
-    4. Stop-word removal (optional)
-    5. Stemming (optional) or Lemmatization (optional)
-    
-    Args:
-        text (str): Input text to preprocess
-        remove_stopwords (bool): Whether to remove stopwords
-        stem (bool): Whether to apply stemming
-        lemmatize (bool): Whether to apply lemmatization (ignored if stem=True)
-        
-    Returns:
-        str: Preprocessed text
-    """
-    if not isinstance(text, str):
-        return ""
-    
-    # Initialize stemmer and lemmatizer
-    stemmer = PorterStemmer()
-    lemmatizer = WordNetLemmatizer()
-    
-    # Get stopwords
-    stop_words = set(stopwords.words('english')) if remove_stopwords else set()
-    
-    # Convert to lowercase
-    text = text.lower()
-    
-    # Remove punctuation
-    text = re.sub(f'[{string.punctuation}]', ' ', text)
-    
-    # Remove extra whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
-    
-    # Tokenize
-    tokens = text.split()
-    
-    # Remove stopwords
-    if remove_stopwords:
-        tokens = [token for token in tokens if token not in stop_words]
-    
-    # Apply stemming or lemmatization
-    if stem:
-        tokens = [stemmer.stem(token) for token in tokens]
-    elif lemmatize:
-        tokens = [lemmatizer.lemmatize(token) for token in tokens]
-    
-    # Join tokens back into text
-    return " ".join(tokens)
-
-# Function to clean text (maintaining backward compatibility)
+# Function to clean text
 def clean_text(text):
-    """Simple text cleaning for basic analysis"""
     if not isinstance(text, str):
         return ""
     
@@ -143,103 +85,6 @@ def plot_top_words(word_counts, title, filename, n=20):
     plt.savefig(f'plots/{filename}.png', bbox_inches='tight')
     plt.close()
 
-# Function to compare preprocessing methods
-def compare_preprocessing_methods(text_series, output_dir="plots"):
-    """Compare different preprocessing methods on sample texts"""
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    # Take a sample of texts
-    sample_size = min(5, len(text_series))
-    sample_texts = text_series.sample(sample_size)
-    
-    # Apply different preprocessing methods
-    results = []
-    for i, text in enumerate(sample_texts):
-        if not isinstance(text, str) or len(text.strip()) == 0:
-            continue
-            
-        # Truncate text if too long
-        display_text = text[:100] + "..." if len(text) > 100 else text
-        
-        results.append({
-            "Original": display_text,
-            "Cleaned": clean_text(text),
-            "Tokenized": clean_text(text),
-            "Stopwords Removed": preprocess_text(text, remove_stopwords=True, stem=False, lemmatize=False),
-            "Stemmed": preprocess_text(text, remove_stopwords=True, stem=True, lemmatize=False),
-            "Lemmatized": preprocess_text(text, remove_stopwords=True, stem=False, lemmatize=True)
-        })
-    
-    # Save comparison to CSV
-    pd.DataFrame(results).to_csv(f"{output_dir}/preprocessing_comparison.csv", index=False)
-    
-    print(f"Preprocessing comparison saved to {output_dir}/preprocessing_comparison.csv")
-    
-    # Return a brief sample for display
-    return pd.DataFrame(results).head(2)
-
-# Function to analyze a dataset
-def analyze_dataset(df, text_column, label_column=None, dataset_name="Dataset", preprocess=True):
-    print(f"\n{'='*50}")
-    print(f"Analyzing {dataset_name}")
-    print(f"{'='*50}")
-    
-    # Basic info
-    print(f"\nShape: {df.shape}")
-    print(f"\nColumns: {df.columns.tolist()}")
-    
-    # Clean and preprocess text
-    stop_words = set(stopwords.words('english'))
-    
-    # Standard cleaning (for backward compatibility)
-    df['cleaned_text'] = df[text_column].apply(clean_text)
-    
-    # Apply enhanced preprocessing
-    if preprocess:
-        print("\nApplying enhanced text preprocessing...")
-        df['preprocessed_text'] = df[text_column].apply(lambda x: 
-            preprocess_text(x, remove_stopwords=True, stem=False, lemmatize=True))
-        
-        # Show preprocessing comparison
-        comparison_df = compare_preprocessing_methods(df[text_column])
-        print("\nPreprocessing Comparison (Sample):")
-        print(comparison_df)
-    
-    # Text length analysis (using preprocessed text if available)
-    text_col_for_analysis = 'preprocessed_text' if preprocess and 'preprocessed_text' in df.columns else 'cleaned_text'
-    
-    df['word_count'] = df[text_col_for_analysis].apply(lambda x: len(x.split()) if isinstance(x, str) else 0)
-    df['char_count'] = df[text_col_for_analysis].apply(lambda x: len(x) if isinstance(x, str) else 0)
-    
-    # Text length statistics
-    print("\nText Length Statistics:")
-    print(f"Words - Mean: {df['word_count'].mean():.2f}, Median: {df['word_count'].median()}, Max: {df['word_count'].max()}")
-    print(f"Characters - Mean: {df['char_count'].mean():.2f}, Median: {df['char_count'].median()}, Max: {df['char_count'].max()}")
-    
-    # Plot text length distributions
-    plot_text_length_distribution(df['word_count'], f'{dataset_name} - Word Count Distribution', f'{dataset_name.lower().replace(" ", "_")}_word_count_dist')
-    plot_text_length_distribution(df['char_count'], f'{dataset_name} - Character Count Distribution', f'{dataset_name.lower().replace(" ", "_")}_char_count_dist')
-    
-    # Vocabulary analysis
-    all_word_counts = get_word_counts(df[text_col_for_analysis], stop_words)
-    unique_words = len(all_word_counts)
-    total_words = sum(all_word_counts.values())
-    
-    print(f"\nVocabulary Analysis:")
-    print(f"Total Words: {total_words}")
-    print(f"Unique Words: {unique_words}")
-    
-    # Generate wordcloud and plot top words
-    generate_wordcloud(all_word_counts, f'{dataset_name} - Word Cloud', f'{dataset_name.lower().replace(" ", "_")}_wordcloud')
-    plot_top_words(all_word_counts, f'{dataset_name} - Top 20 Words', f'{dataset_name.lower().replace(" ", "_")}_top_words')
-    
-    # Class distribution (if label column is provided)
-    if label_column and label_column in df.columns:
-        # Rest of the code remains the same for class distribution analysis
-        # ...
-        pass
-
 # Function to plot text length distributions
 def plot_text_length_distribution(lengths, title, filename, bins=50):
     plt.figure(figsize=(12, 6))
@@ -254,51 +99,135 @@ def plot_text_length_distribution(lengths, title, filename, bins=50):
     plt.savefig(f'plots/{filename}.png', bbox_inches='tight')
     plt.close()
 
-
-# Function to extract Bag of Words and TF-IDF features
-
-def extract_bow_features(texts, max_features=1000):
+# Function to analyze a dataset
+def analyze_dataset(df, text_column, label_column=None, dataset_name="Dataset"):
+    print(f"\n{'='*50}")
+    print(f"Analyzing {dataset_name}")
+    print(f"{'='*50}")
     
-    # Extract Bag of Words features from a list/series of texts.
+    # Basic info
+    print(f"\nShape: {df.shape}")
+    print(f"\nColumns: {df.columns.tolist()}")
     
-    vectorizer = CountVectorizer(max_features=max_features)
-    X_bow = vectorizer.fit_transform(texts)
-    print(f"BOW shape: {X_bow.shape}")
-    return X_bow, vectorizer
-
-def extract_tfidf_features(texts, max_features=1000):
+    # Clean and preprocess text
+    stop_words = set(stopwords.words('english'))
+    df['cleaned_text'] = df[text_column].apply(clean_text)
     
-    # Extract TF-IDF features from a list/series of texts.
+    # Text length analysis
+    df['word_count'] = df['cleaned_text'].apply(lambda x: len(x.split()) if isinstance(x, str) else 0)
+    df['char_count'] = df['cleaned_text'].apply(lambda x: len(x) if isinstance(x, str) else 0)
     
-    vectorizer = TfidfVectorizer(max_features=max_features)
-    X_tfidf = vectorizer.fit_transform(texts)
-    print(f"TF-IDF shape: {X_tfidf.shape}")
-    return X_tfidf, vectorizer
+    # Text length statistics
+    print("\nText Length Statistics:")
+    print(f"Words - Mean: {df['word_count'].mean():.2f}, Median: {df['word_count'].median()}, Max: {df['word_count'].max()}")
+    print(f"Characters - Mean: {df['char_count'].mean():.2f}, Median: {df['char_count'].median()}, Max: {df['char_count'].max()}")
+    
+    # Plot text length distributions
+    plot_text_length_distribution(df['word_count'], f'{dataset_name} - Word Count Distribution', f'{dataset_name.lower().replace(" ", "_")}_word_count_dist')
+    plot_text_length_distribution(df['char_count'], f'{dataset_name} - Character Count Distribution', f'{dataset_name.lower().replace(" ", "_")}_char_count_dist')
+    
+    # Vocabulary analysis
+    all_word_counts = get_word_counts(df['cleaned_text'], stop_words)
+    unique_words = len(all_word_counts)
+    total_words = sum(all_word_counts.values())
+    
+    print(f"\nVocabulary Analysis:")
+    print(f"Total Words: {total_words}")
+    print(f"Unique Words: {unique_words}")
+    
+    # Generate wordcloud and plot top words
+    generate_wordcloud(all_word_counts, f'{dataset_name} - Word Cloud', f'{dataset_name.lower().replace(" ", "_")}_wordcloud')
+    plot_top_words(all_word_counts, f'{dataset_name} - Top 20 Words', f'{dataset_name.lower().replace(" ", "_")}_top_words')
+    
+    # Class distribution (if label column is provided)
+    if label_column and label_column in df.columns:
+        print("\nClass Distribution:")
+        class_dist = df[label_column].value_counts(normalize=True) * 100
+        print(class_dist)
+        
+        # Plot class distribution
+        plt.figure(figsize=(10, 6))
+        class_counts = df[label_column].value_counts()
+        bars = plt.bar(class_counts.index.astype(str), class_counts.values)
+        plt.title(f'{dataset_name} - Class Distribution', fontsize=16)
+        plt.xlabel('Class')
+        plt.ylabel('Count')
+        
+        # Add percentage labels
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            plt.annotate(f'{height} ({class_dist.values[i]:.1f}%)',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),  # 3 points vertical offset
+                        textcoords="offset points",
+                        ha='center', va='bottom')
+        
+        plt.tight_layout()
+        plt.savefig(f'plots/{dataset_name.lower().replace(" ", "_")}_class_dist.png', bbox_inches='tight')
+        plt.close()
+        
+        # Class-specific wordclouds
+        class_values = df[label_column].unique()
+        for class_val in class_values:
+            class_texts = df[df[label_column] == class_val]['cleaned_text']
+            class_word_counts = get_word_counts(class_texts, stop_words)
+            
+            if class_word_counts:  # Only generate if there are words
+                generate_wordcloud(class_word_counts, 
+                                  f'{dataset_name} - Class {class_val} Word Cloud', 
+                                  f'{dataset_name.lower().replace(" ", "_")}_class_{class_val}_wordcloud')
+                
+                plot_top_words(class_word_counts, 
+                              f'{dataset_name} - Class {class_val} Top 20 Words', 
+                              f'{dataset_name.lower().replace(" ", "_")}_class_{class_val}_top_words')
 
-# Load Reddit dataset and apply preprocessing
-print("Loading Reddit dataset...")
-reddit_df = pd.read_csv("Reddit Sample Data.csv")
+# Load datasets
+print("Loading datasets...")
 
-# Special focus on Reddit dataset preprocessing
-print("\nApplying preprocessing to Reddit dataset...")
-analyze_dataset(reddit_df, 'body', dataset_name="Reddit Dataset", preprocess=True)
+# Hate Speech Detection Dataset
+hate_speech_df = pd.read_csv("Hate Speech Detection Dataset.csv")
+# Reddit Sample Data
+reddit_df = pd.read_csv("Reddit Sample Data.csv") 
+# Ethos Multi-Label Dataset
+ethos_df = pd.read_csv("Ethos Multi-Label Dataset.csv", sep=';')
 
-# Save preprocessed data
-reddit_df['preprocessed_text'] = reddit_df['body'].apply(lambda x: 
-    preprocess_text(x, remove_stopwords=True, stem=False, lemmatize=True))
-reddit_df.to_csv("Reddit_Sample_Data_Preprocessed.csv", index=False)
+# Analyze each dataset
+analyze_dataset(hate_speech_df, 'Comment', 'Hateful', "Hate Speech Dataset")
 
+# For Reddit, we need to check if there are labels
+if 'Hateful' in reddit_df.columns:
+    analyze_dataset(reddit_df, 'body', 'Hateful', "Reddit Dataset")
+else:
+    analyze_dataset(reddit_df, 'body', dataset_name="Reddit Dataset")
 
-# Uses the preprocessed text column for feature extraction
-preprocessed_texts = reddit_df['preprocessed_text'].fillna("")
+# For Ethos, it's a multi-label dataset
+ethos_columns = ethos_df.columns.tolist()
+ethos_text_column = ethos_columns[0]  # First column should be text
+ethos_label_columns = ethos_columns[1:]  # Rest are label columns
 
-# Bag of Words
-X_bow, bow_vectorizer = extract_bow_features(preprocessed_texts)
+# Analyze Ethos dataset overall
+analyze_dataset(ethos_df, ethos_text_column, dataset_name="Ethos Dataset")
 
-# TF-IDF
-X_tfidf, tfidf_vectorizer = extract_tfidf_features(preprocessed_texts)
+# Convert multi-label to single binary label (any hate speech)
+if len(ethos_label_columns) > 0:
+    ethos_df['any_hate'] = ethos_df[ethos_label_columns].sum(axis=1) > 0
+    analyze_dataset(ethos_df, ethos_text_column, 'any_hate', "Ethos Binary Dataset")
+    
+    # Analyze individual hate categories
+    for label in ethos_label_columns:
+        category_name = label.replace('_', ' ').title()
+        ethos_subset = ethos_df[ethos_df[label] > 0]
+        if len(ethos_subset) > 0:
+            print(f"\nAnalyzing Ethos - {category_name} Category (n={len(ethos_subset)})")
+            category_word_counts = get_word_counts(ethos_subset[ethos_text_column].apply(clean_text), 
+                                                 set(stopwords.words('english')))
+            
+            generate_wordcloud(category_word_counts, 
+                              f'Ethos - {category_name} Word Cloud', 
+                              f'ethos_{label}_wordcloud')
+            
+            plot_top_words(category_word_counts, 
+                          f'Ethos - {category_name} Top 20 Words', 
+                          f'ethos_{label}_top_words')
 
-print("\nFeature extraction (Bag of Words & TF-IDF) complete!")
-
-print("\nPreprocessing completed! Preprocessed Reddit data saved to 'Reddit_Sample_Data_Preprocessed.csv'")
-print("Check the 'plots' folder for visualizations and preprocessing comparison.")
+print("\nEDA completed! Check the 'plots' folder for visualizations.")
