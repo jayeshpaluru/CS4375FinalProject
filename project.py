@@ -52,6 +52,7 @@ if torch.cuda.is_available():
 device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
+
 DATASETS = [
     {
         "filename": "Hate Speech Detection Dataset.csv",
@@ -79,6 +80,7 @@ DATASETS = [
     }
 ]
 
+# Helper functions
 def find_best_col(df, candidates):
     df_cols_lower = {col.lower(): col for col in df.columns}
     for candidate in candidates:
@@ -187,6 +189,7 @@ def balanced_sample(df, label_col, max_rows_total, shuffle=True, allow_upsamplin
         final_df = final_df.sample(frac=1, random_state=SEED).reset_index(drop=True)
     return final_df
 
+# EDA Process Summary
 def run_eda(df, text_col, label_col, dataset_name_sanitized, eda_summary):
     print(f"\n--- EDA for {dataset_name_sanitized} ---")
     eda_summary['shape_after_initial_sampling'] = tuple(df.shape)
@@ -225,6 +228,7 @@ def run_eda(df, text_col, label_col, dataset_name_sanitized, eda_summary):
             top20words = word_counts_series.head(20).to_dict()
             eda_summary['top20words'] = top20words
             print(f"Top 20 words (after basic cleaning): {list(top20words.keys())}")
+
 
 def run_classical_modeling(df, text_col, label_col, dataset_name_sanitized, max_rows_sampling_for_model, model_summary):
     print(f"\n--- Classical Modeling for {dataset_name_sanitized} ---")
@@ -341,6 +345,7 @@ def yield_tokens_for_vocab(texts_iterator, tokenizer_func):
     for text_item in texts_iterator:
         yield tokenizer_func(str(text_item))
 
+# Builds a custom vocab from the texts iterable.
 def build_custom_vocab(texts_iterable, tokenizer_func, min_freq=2):
     print(f"Building vocabulary with min_freq={min_freq}...")
     counter = Counter()
@@ -393,6 +398,7 @@ class TextClassificationDataset(Dataset):
             
         return torch.tensor(token_ids, dtype=torch.long), torch.tensor(label, dtype=torch.float32)
 
+# define and test the LSTM model 
 class LSTMHateSpeechClassifier(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim, n_layers, 
                  bidirectional, dropout_rate, pad_idx_val, pretrained_embeddings=None):
@@ -689,3 +695,4 @@ print("""
 """)
 
 print("All tasks finished! Check the 'plots/' directory for visualizations and the console output for detailed results.")
+
